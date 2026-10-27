@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -11,6 +12,7 @@ REGISTRY = ROOT / "data" / "papers.json"
 README = ROOT / "README.md"
 START = "<!-- PAPERS:START -->"
 END = "<!-- PAPERS:END -->"
+LAST_PASS = "2026-10-27"
 TOPICS = [
     "Online Perception & Understanding",
     "Continuous Memory & Long-Horizon Reasoning",
@@ -19,15 +21,25 @@ TOPICS = [
     "Proactive Assistance & Situated Interaction",
     "Anticipation, Planning & Embodied Reasoning",
 ]
+BLURBS = {
+    "Online Perception & Understanding": "What is unfolding now, using only the observation available at this moment?",
+    "Continuous Memory & Long-Horizon Reasoning": "What happened, what changed, and which past state is still valid?",
+    "Personalized & User-Centric Understanding": "What should be remembered because it matters to this wearer, not to a generic user?",
+    "Streaming Audio-Visual Understanding": "Which observed entity or event does an utterance refer to?",
+    "Proactive Assistance & Situated Interaction": "Should the assistant stay silent, answer, or intervene now?",
+    "Anticipation, Planning & Embodied Reasoning": "What happens next, and which action or correction is appropriate?",
+}
 TIERS = {"Core", "Related"}
 REQUIRED = {
-    "id", "title", "year", "tier", "primary_topic", "kind", "viewpoint",
-    "protocol", "interaction", "memory_horizon", "audio_role", "paper_url",
-    "code_url", "project_url", "why_it_matters", "verification_note",
+    "id", "title", "year", "date", "short_name", "tier", "primary_topic", "kind",
+    "viewpoint", "protocol", "interaction", "memory_horizon", "audio_role", "venue",
+    "paper_url", "code_url", "project_url", "dataset_url", "why_it_matters",
+    "verification_note",
 }
+DATE_RE = re.compile(r"\d{4}/\d{2}")
 
 
-def verify_url(url: str, where: str, optional: bool = False) -> None:
+def verify_url(url, where, optional=False):
     if optional and not url:
         return
     parts = urlparse(url)
@@ -35,7 +47,7 @@ def verify_url(url: str, where: str, optional: bool = False) -> None:
         raise ValueError(f"Invalid URL for {where}: {url!r}")
 
 
-def validate(items: list[dict]) -> None:
+def validate(items):
     if not isinstance(items, list):
         raise ValueError("papers.json must contain a JSON list")
     ids = set()
@@ -51,61 +63,128 @@ def validate(items: list[dict]) -> None:
         ids.add(item["id"])
         if not isinstance(item["year"], int) or not 1900 <= item["year"] <= 2100:
             raise ValueError(f"Invalid year: {item['id']}")
+        if not DATE_RE.fullmatch(item["date"]):
+            raise ValueError(f"date must be YYYY/MM: {item['id']}")
+        year_text, month_text = item["date"].split("/")
+        if int(year_text) != item["year"] or not 1 <= int(month_text) <= 12:
+            raise ValueError(f"date does not match year: {item['id']}")
         if item["tier"] not in TIERS:
             raise ValueError(f"Invalid tier: {item['id']}")
         if item["primary_topic"] not in TOPICS:
             raise ValueError(f"Invalid topic: {item['id']}")
-        if not item["title"].strip() or not item["why_it_matters"].strip():
-            raise ValueError(f"Title / research motivation must be nonempty: {item['id']}")
+        for field in ("title", "short_name", "venue", "why_it_matters"):
+            if not str(item[field]).strip():
+                raise ValueError(f"{field} must be nonempty: {item['id']}")
         verify_url(item["paper_url"], f"{item['id']}.paper_url")
-        for field in ("code_url", "project_url"):
+        for field in ("code_url", "project_url", "dataset_url"):
             verify_url(item[field], f"{item['id']}.{field}", optional=True)
         if item["paper_url"] in papers:
             raise ValueError(f"Duplicate paper URL: {item['paper_url']}")
         papers.add(item["paper_url"])
 
 
-def cell(text: str) -> str:
+def cell(text):
     """Make a simple inline Markdown table cell safe."""
     return str(text).replace("|", "\\|").replace("\n", " ").strip()
 
 
-def render(items: list[dict]) -> str:
+def resources(item):
+    grouped = []
+    index = {}
+    for label, key in (("Code", "code_url"), ("Project", "project_url"), ("Data", "dataset_url")):
+        url = item.get(key) or ""
+        if not url or url == item["paper_url"]:
+            continue
+        if url in index:
+            grouped[index[url]][1].append(label)
+            continue
+        index[url] = len(grouped)
+        grouped.append([url, [label]])
+    if not grouped:
+        return "—"
+    return " · ".join(f"[{' / '.join(labels)}]({url})" for url, labels in grouped)
+
+
+def paper_rows(matches):
     lines = [
-        f"_Seed entries: **{len(items)}** · Core: **{sum(i['tier'] == 'Core' for i in items)}** · Related: **{sum(i['tier'] == 'Related' for i in items)}**. Missing links mean **not recorded**, not necessarily unavailable._",
+        "| Paper | Work | Date | Venue | Streaming evidence | Method / Key Contribution | Resources |",
+        "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+    ]
+    ordered = sorted(matches, key=lambda x: x["title"].casefold())
+    ordered.sort(key=lambda x: x["date"], reverse=True)
+    for item in ordered:
+        lines.append("| " + " | ".join((
+            f"[{cell(item['title'])}]({item['paper_url']})",
+            cell(item["short_name"]),
+            cell(item["date"]),
+            cell(item["venue"]),
+            cell(item["protocol"]),
+            cell(item["why_it_matters"]),
+            resources(item),
+        )) + " |")
+    return lines
+
+
+def render(items):
+    core = sum(i["tier"] == "Core" for i in items)
+    related = sum(i["tier"] == "Related" for i in items)
+    lines = [
+        f"_Curated entries: **{len(items)}** · Core: **{core}** · Related: **{related}**. Literature pass: **{LAST_PASS}**. Streaming labels follow author-described evidence and are not an independent latency audit. A missing code, project, or data link means **not recorded**._",
+        "",
+        "Interaction type, memory horizon, and audio role stay in [`data/papers.json`](data/papers.json) so this table can stay readable.",
         "",
     ]
     for tier in ("Core", "Related"):
         lines.extend([f"### {tier} papers", ""])
-        if tier == "Related":
-            lines.extend(["These papers inform the research agenda but have not yet been confirmed to meet the strict core scope.", ""])
+        if tier == "Core":
+            lines.extend([
+                "First-person visual input, an author-described online or causal protocol, and an understanding, memory, reasoning, or interaction task.",
+                "",
+            ])
+        else:
+            lines.extend([
+                "These papers inform the research agenda, but first-person capture and a causal streaming protocol are not both established.",
+                "",
+            ])
+        tier_items = [i for i in items if i["tier"] == tier]
+        if not tier_items and tier == "Related":
+            lines.extend(["_None yet._", ""])
+            continue
         for topic in TOPICS:
-            matches = [i for i in items if i["tier"] == tier and i["primary_topic"] == topic]
-            if not matches:
+            matches = [i for i in tier_items if i["primary_topic"] == topic]
+            if not matches and tier == "Related":
                 continue
             lines.extend([
                 f"#### {topic}",
                 "",
-                "| Paper | Type | Streaming evidence | Research motivation | Resources |",
-                "| --- | --- | --- | --- | --- |",
+                f"*{BLURBS[topic]}*",
+                "",
             ])
-            for item in sorted(matches, key=lambda x: (-x["year"], x["title"].casefold())):
-                paper = f"[{cell(item['title'])}]({item['paper_url']}) ({item['year']})"
-                links = [f"[Paper]({item['paper_url']})"]
-                if item["code_url"]:
-                    links.append(f"[Code]({item['code_url']})")
-                if item["project_url"]:
-                    links.append(f"[Project]({item['project_url']})")
-                lines.append("| " + " | ".join((
-                    paper,
-                    cell(item["kind"]),
-                    cell(item["protocol"]),
-                    cell(item["why_it_matters"]),
-                    " · ".join(links)
-                )) + " |")
+            if not matches:
+                lines.extend(["_No curated core entry yet._", ""])
+                continue
+            lines.extend(paper_rows(matches))
             lines.extend(["", ""])
-        if not any(i["tier"] == tier for i in items):
-            lines.extend(["_None yet._", ""])
+    lines.extend([
+        "### Release index",
+        "",
+        "Same entries, newest submission month first. Question is the single primary category, not an exhaustive tag set.",
+        "",
+        "| Date | Paper | Work | Tier | Question | Venue |",
+        "| :--- | :--- | :--- | :--- | :--- | :--- |",
+    ])
+    ordered = sorted(items, key=lambda x: x["title"].casefold())
+    ordered.sort(key=lambda x: x["date"], reverse=True)
+    for item in ordered:
+        lines.append("| " + " | ".join((
+            cell(item["date"]),
+            f"[{cell(item['title'])}]({item['paper_url']})",
+            cell(item["short_name"]),
+            cell(item["tier"]),
+            cell(item["primary_topic"]),
+            cell(item["venue"]),
+        )) + " |")
+    lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 

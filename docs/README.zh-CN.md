@@ -14,8 +14,8 @@
 
 1. 找到论文、项目主页、官方代码和评测说明。
 2. 阅读摘要及方法/评测，归入一个**主类**。
-3. 填写 `data/papers.json`，务必记录流式协议的证据等级。
-4. 在本地运行 `python scripts/build_readme.py` 生成索引。
+3. 填写 `data/papers.json`。除原有字段外，还要写 `short_name`、`date`（`YYYY/MM`，并且和 `year` 一致）、`venue`（只有预印本时写 `arXiv`）和 `dataset_url`（未知就留空字符串）。`why_it_matters` 用 `**贡献点**: 一句话` 开头。流式协议只写有证据的等级。
+4. 在本地运行 `python scripts/build_readme.py` 生成索引。表格形式对齐 Awesome-Streaming-Video-Understanding（日期、venue、加粗贡献、按时间总表），六个研究问题保持不变。
 5. 运行 `python scripts/build_readme.py --check`；通过后提交 PR。
 
 ## 进一步完善

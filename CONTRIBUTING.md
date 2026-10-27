@@ -14,7 +14,7 @@ Thank you for helping maintain a precise, research-useful collection.
 
 ## Edit and validate
 
-1. Add a new unique object to `data/papers.json` (copy an existing object as a template).
+1. Add a new unique object to `data/papers.json` (copy an existing object as a template). Include `short_name`, `date` (`YYYY/MM`, matching `year`), `venue` (`arXiv` if no proceedings are recorded), and `dataset_url` (empty string if unknown). Start `why_it_matters` with a bold lead-in: `**Idea**: what changes.`
 2. Run `python scripts/build_readme.py`.
 3. Run `python scripts/build_readme.py --check`.
 4. Submit a pull request with a link to the relevant method/evaluation paragraph and a concise rationale.
