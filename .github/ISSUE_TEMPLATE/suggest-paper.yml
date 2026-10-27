@@ -1,0 +1,28 @@
+name: Suggest a paper
+description: Suggest a relevant egocentric streaming video paper
+body:
+  - type: input
+    id: title
+    attributes:
+      label: Paper title
+      placeholder: Full official title
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Paper URL
+      placeholder: https://arxiv.org/abs/...
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Egocentric / streaming / task evidence
+      description: Explain whether the input is first person, how frames arrive, and what the system must do.
+    validations:
+      required: true
+  - type: textarea
+    id: links
+    attributes:
+      label: Optional code, project, and dataset links
