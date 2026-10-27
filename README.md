@@ -2,6 +2,14 @@
 
 > A curated and **protocol-aware** collection of research on continuous first-person video understanding: online perception, episodic and personalized memory, audio-visual grounding, proactive interaction, and embodied reasoning.
 
+<p align="center">
+  <img src="assets/images/cover.png" alt="Awesome Egocentric Streaming Video Understanding Cover" width="100%">
+</p>
+
+<p align="center">
+  A curated collection of papers, datasets, models, benchmarks, and resources for online first-person video understanding.
+</p>
+
 **Status:** Community-curated starter, not an exhaustive survey. Seed entries were cross-checked against authors' papers or project pages on **2026-10-27**, but this is **not** an independent code reproduction or latency audit.
 
 [Research taxonomy](docs/TAXONOMY.md) · [Evaluation protocol](docs/PROTOCOL.md) · [Open questions](docs/RESEARCH_GAPS.md) · [中文指南](docs/README.zh-CN.md) · [Contribute](CONTRIBUTING.md)
